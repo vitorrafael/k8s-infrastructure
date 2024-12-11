@@ -26,7 +26,8 @@ spec:
 
       containers:
         - name: lanchonete-api-container
-          image: vitorrafael/lanchonete-api:latest
+          image: 590183731131.dkr.ecr.us-east-1.amazonaws.com/tech-challenge-lanchonete/lanchonete-api:latest
+          imagePullPolicy: Always
           env:
             - name: POSTGRES_HOST
               value: "lanchonete-db"

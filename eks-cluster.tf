@@ -1,25 +1,3 @@
-terraform {
-  required_providers {
-    aws = {
-      source  = "hashicorp/aws"
-      version = ">=5.35"
-    }
-  }
-  required_version = ">= 1.1.0"
-
-  cloud {
-    organization = "FIAP-SOAT-8-G6"
-
-    workspaces {
-      name = "gh-actions"
-    }
-  }
-}
-
-provider "aws" {
-  region = var.regionDefault
-}
-
 resource "aws_eks_cluster" "eks-cluster" {
   name     = var.projectName
   role_arn = data.aws_iam_role.labrole.arn
@@ -53,24 +31,19 @@ resource "aws_eks_node_group" "node-group" {
   }
 }
 
-resource "aws_security_group" "sg" {
-  name        = "SG-${var.projectName}"
-  description = "EKS Cluster Security Group"
-  vpc_id      = data.aws_vpc.vpc.id
+resource "aws_eks_access_entry" "access-entry" {
+  cluster_name      = aws_eks_cluster.eks-cluster.name
+  principal_arn     = "arn:aws:iam::${var.accountId}:role/voclabs"
+  kubernetes_groups = ["fiap"]
+  type              = "STANDARD"
+}
 
-  ingress {
-    description = "All"
-    from_port   = 80
-    to_port     = 80
-    protocol    = "tcp"
-    cidr_blocks = ["0.0.0.0/0"]
-  }
+resource "aws_eks_access_policy_association" "eks-policy" {
+  cluster_name  = aws_eks_cluster.eks-cluster.name
+  policy_arn    = var.policyArn
+  principal_arn = "arn:aws:iam::${var.accountId}:role/voclabs"
 
-  egress {
-    description = "All"
-    from_port   = 0
-    to_port     = 0
-    protocol    = "-1"
-    cidr_blocks = ["0.0.0.0/0"]
+  access_scope {
+    type = "cluster"
   }
 }

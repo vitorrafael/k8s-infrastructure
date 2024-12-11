@@ -11,7 +11,11 @@ variable "vpcCidr" {
 }
 
 variable "instanceType" {
-  default = "t3a.small"
+  default = "t3a.medium"
+}
+
+variable "accountId" {
+  type = string
 }
 
 variable "policyArn" {

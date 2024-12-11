@@ -3,18 +3,90 @@ name: 'Terraform'
 on:
   push:
     branches: [ "main" ]
+  workflow_dispatch:
+  pull_request_target:
   pull_request:
 
 permissions:
   contents: read
   pull-requests: write
 
+env:
+  AWS_REGION_DEFAULT: us-east-1
+  CLUSTER_NAME: tech-challenge-lanchonete
+
 jobs:
-  terraform:
-    name: 'Terraform'
+  terraform-backend:
+    name: 'Terraform Backend'
     runs-on: ubuntu-latest
     environment: production
 
+    defaults:
+      run:
+        shell: bash
+
+    steps:
+    - name: Checkout
+      uses: actions/checkout@v4
+
+    - name: Configure AWS Credentials
+      uses: aws-actions/configure-aws-credentials@v1
+      with:
+        aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+        aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+        aws-session-token: ${{ secrets.AWS_SESSION_TOKEN }}
+        aws-region: ${{ env.AWS_REGION_DEFAULT }}
+    
+    - name: Setup Terraform
+      uses: hashicorp/setup-terraform@v2
+
+    - name: Terraform Init
+      run: terraform -chdir=backend init
+
+    - name: Terraform Plan
+      id: backend-plan
+      if: github.event_name == 'pull_request'
+      run: terraform -chdir=backend plan -no-color -input=false
+      continue-on-error: true
+
+    - name: Update Pull Request
+      uses: actions/github-script@v6
+      if: github.event_name == 'pull_request'
+      env:
+        BACKEND_PLAN: ${{ steps.backend-plan.outputs.stdout }}
+      with:
+        github-token: ${{ secrets.GITHUB_TOKEN }}
+        script: |
+          const output = `#### Terraform Backend
+          #### Terraform Backend Plan 📖\`${{ steps.backend-plan.outcome }}\`
+
+          <details><summary>Show Plan</summary>
+
+          \`\`\`terraform\n
+          ${process.env.BACKEND_PLAN}
+          \`\`\`
+
+          </details>
+
+          *Pushed by: @${{ github.actor }}, Action: \`${{ github.event_name }}\`*`;
+
+          github.rest.issues.createComment({
+            issue_number: context.issue.number,
+            owner: context.repo.owner,
+            repo: context.repo.repo,
+            body: output
+          })
+
+    - name: Terraform Apply
+      if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+      run: terraform -chdir=backend apply -auto-approve -input=false
+  
+  terraform-eks:
+    name: 'Terraform EKS'
+    needs: terraform-backend
+    runs-on: ubuntu-latest
+    environment: production
+  
     # Use the Bash shell regardless whether the GitHub Actions runner is ubuntu-latest, macos-latest, or windows-latest
     defaults:
       run:
@@ -25,17 +97,21 @@ jobs:
     - name: Checkout
       uses: actions/checkout@v4
 
-    # Install the latest version of Terraform CLI and configure the Terraform CLI configuration file with a Terraform Cloud user API token
-    - name: Setup Terraform
-      uses: hashicorp/setup-terraform@v1
+    - name: Configure AWS Credentials
+      uses: aws-actions/configure-aws-credentials@v1
       with:
-        cli_config_credentials_token: ${{ secrets.TF_API_TOKEN }}
+        aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+        aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+        aws-session-token: ${{ secrets.AWS_SESSION_TOKEN }}
+        aws-region: ${{ env.AWS_REGION_DEFAULT }}
+    
+    - name: Setup Terraform
+      uses: hashicorp/setup-terraform@v2
 
     - name: Terraform Init
       id: init
       run: terraform init
     
-    # Checks that all Terraform configuration files adhere to a canonical format
     - name: Terraform Format
       run: terraform fmt -check
     
@@ -46,6 +122,8 @@ jobs:
     - name: Terraform Plan
       id: plan
       if: github.event_name == 'pull_request'
+      env:
+        TF_VAR_accountId: ${{ secrets.AWS_ACCOUNT_ID }}
       run: terraform plan -no-color -input=false
       continue-on-error: true
 
@@ -79,8 +157,16 @@ jobs:
             body: output
           })
 
-      # On push to "main", build or change infrastructure according to Terraform configuration files
-      # Note: It is recommended to set up a required "strict" status check in your repository for "Terraform Cloud". See the documentation on "strict" required status checks for more information: https://help.github.com/en/github/administering-a-repository/types-of-required-status-checks
     - name: Terraform Apply
       if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+      env: 
+        TF_VAR_accountId: ${{ secrets.AWS_ACCOUNT_ID }}
       run: terraform apply -auto-approve -input=false
+
+    - name: Connect to AWS EKS Cluster
+      if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+      run: aws eks update-kubeconfig --name ${{ env.CLUSTER_NAME }} --region ${{ env.AWS_REGION_DEFAULT }}
+
+    - name: Deploy k8s Resources to AWS EKS
+      if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+      run: kubectl apply -f k8s/ -R
