@@ -6,7 +6,7 @@ metadata:
     app: lanchonete-db
 data:
   POSTGRES_USER: "postgres"
-  POSTGRES_DB: "lanchonete-database"
+  POSTGRES_DB: "lanchoneteDatabase"
   POSTGRES_PORT: "5432"
-  DB_NAME: "lanchonete-database"
+  DB_NAME: "lanchoneteDatabase"
   VOLUME_DB_DATA: "/var/lib/postgresql/data"

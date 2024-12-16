@@ -1,11 +1,14 @@
-name: 'Terraform'
+name: "Terraform"
 
 on:
   push:
-    branches: [ "main" ]
+    branches: ["main"]
   workflow_dispatch:
-  pull_request_target:
   pull_request:
+    types:
+      - opened
+      - synchronize
+      - reopened
 
 permissions:
   contents: read
@@ -14,10 +17,25 @@ permissions:
 env:
   AWS_REGION_DEFAULT: us-east-1
   CLUSTER_NAME: tech-challenge-lanchonete
+  S3_BACKEND_BUCKET_NAME: tcl-terraform-bucket
 
 jobs:
+  sonarqube:
+    name: SonarQube
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: SonarQube Scan
+        uses: SonarSource/sonarqube-scan-action@v4
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+
   terraform-backend:
-    name: 'Terraform Backend'
+    name: "Terraform Backend"
     runs-on: ubuntu-latest
     environment: production
 
@@ -26,147 +44,122 @@ jobs:
         shell: bash
 
     steps:
-    - name: Checkout
-      uses: actions/checkout@v4
+      - name: Checkout
+        uses: actions/checkout@v4
 
-    - name: Configure AWS Credentials
-      uses: aws-actions/configure-aws-credentials@v1
-      with:
-        aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
-        aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-        aws-session-token: ${{ secrets.AWS_SESSION_TOKEN }}
-        aws-region: ${{ env.AWS_REGION_DEFAULT }}
-    
-    - name: Setup Terraform
-      uses: hashicorp/setup-terraform@v2
+      - name: Configure AWS Credentials
+        uses: aws-actions/configure-aws-credentials@v1
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-session-token: ${{ secrets.AWS_SESSION_TOKEN }}
+          aws-region: ${{ env.AWS_REGION_DEFAULT }}
 
-    - name: Terraform Init
-      run: terraform -chdir=backend init
+      - name: Check S3 Bucket Existence
+        id: check-bucket
+        run: |
+          if aws s3api head-bucket --bucket "${{ env.S3_BACKEND_BUCKET_NAME }}" 2>/dev/null; then
+            echo "exists=true" >> $GITHUB_ENV
+          else
+            echo "exists=false" >> $GITHUB_ENV
+          fi
 
-    - name: Terraform Plan
-      id: backend-plan
-      if: github.event_name == 'pull_request'
-      run: terraform -chdir=backend plan -no-color -input=false
-      continue-on-error: true
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v2
 
-    - name: Update Pull Request
-      uses: actions/github-script@v6
-      if: github.event_name == 'pull_request'
-      env:
-        BACKEND_PLAN: ${{ steps.backend-plan.outputs.stdout }}
-      with:
-        github-token: ${{ secrets.GITHUB_TOKEN }}
-        script: |
-          const output = `#### Terraform Backend
-          #### Terraform Backend Plan 📖\`${{ steps.backend-plan.outcome }}\`
+      - name: Terraform Init
+        run: terraform -chdir=backend init
 
-          <details><summary>Show Plan</summary>
+      - name: Terraform Apply
+        if: env.exists == 'false' && github.ref == 'refs/heads/main' && github.event_name == 'push'
+        run: terraform -chdir=backend apply -auto-approve -input=false
 
-          \`\`\`terraform\n
-          ${process.env.BACKEND_PLAN}
-          \`\`\`
-
-          </details>
-
-          *Pushed by: @${{ github.actor }}, Action: \`${{ github.event_name }}\`*`;
-
-          github.rest.issues.createComment({
-            issue_number: context.issue.number,
-            owner: context.repo.owner,
-            repo: context.repo.repo,
-            body: output
-          })
-
-    - name: Terraform Apply
-      if: github.ref == 'refs/heads/main' && github.event_name == 'push'
-      run: terraform -chdir=backend apply -auto-approve -input=false
-  
   terraform-eks:
-    name: 'Terraform EKS'
+    name: "Terraform EKS"
     needs: terraform-backend
     runs-on: ubuntu-latest
     environment: production
-  
+
     # Use the Bash shell regardless whether the GitHub Actions runner is ubuntu-latest, macos-latest, or windows-latest
     defaults:
       run:
         shell: bash
 
     steps:
-    # Checkout the repository to the GitHub Actions runner
-    - name: Checkout
-      uses: actions/checkout@v4
+      # Checkout the repository to the GitHub Actions runner
+      - name: Checkout
+        uses: actions/checkout@v4
 
-    - name: Configure AWS Credentials
-      uses: aws-actions/configure-aws-credentials@v1
-      with:
-        aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
-        aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-        aws-session-token: ${{ secrets.AWS_SESSION_TOKEN }}
-        aws-region: ${{ env.AWS_REGION_DEFAULT }}
-    
-    - name: Setup Terraform
-      uses: hashicorp/setup-terraform@v2
+      - name: Configure AWS Credentials
+        uses: aws-actions/configure-aws-credentials@v1
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-session-token: ${{ secrets.AWS_SESSION_TOKEN }}
+          aws-region: ${{ env.AWS_REGION_DEFAULT }}
 
-    - name: Terraform Init
-      id: init
-      run: terraform init
-    
-    - name: Terraform Format
-      run: terraform fmt -check
-    
-    - name: Terraform Validate
-      id: validate
-      run: terraform validate -no-color
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v2
 
-    - name: Terraform Plan
-      id: plan
-      if: github.event_name == 'pull_request'
-      env:
-        TF_VAR_accountId: ${{ secrets.AWS_ACCOUNT_ID }}
-      run: terraform plan -no-color -input=false
-      continue-on-error: true
+      - name: Terraform Init
+        id: init
+        run: terraform init
 
-    - name: Update Pull Request
-      uses: actions/github-script@v6
-      if: github.event_name == 'pull_request'
-      env:
-        PLAN: ${{ steps.plan.outputs.stdout }}
-      with:
-        github-token: ${{ secrets.GITHUB_TOKEN }}
-        script: |
-          const output = `#### Terraform Format and Style 🖌\`${{ steps.fmt.outcome }}\`
-          #### Terraform Initialization ⚙️\`${{ steps.init.outcome }}\`
-          #### Terraform Validation 🤖\`${{ steps.validate.outcome }}\`
-          #### Terraform Plan 📖\`${{ steps.plan.outcome }}\`
+      - name: Terraform Format
+        run: terraform fmt -check
 
-          <details><summary>Show Plan</summary>
+      - name: Terraform Validate
+        id: validate
+        run: terraform validate -no-color
 
-          \`\`\`terraform\n
-          ${process.env.PLAN}
-          \`\`\`
+      - name: Terraform Plan
+        id: plan
+        if: github.event_name == 'pull_request'
+        env:
+          TF_VAR_accountId: ${{ secrets.AWS_ACCOUNT_ID }}
+        run: terraform plan -no-color -input=false
+        continue-on-error: true
 
-          </details>
+      - name: Update Pull Request
+        uses: actions/github-script@v6
+        if: github.event_name == 'pull_request'
+        env:
+          PLAN: ${{ steps.plan.outputs.stdout }}
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          script: |
+            const output = `#### Terraform Format and Style 🖌\`${{ steps.fmt.outcome }}\`
+            #### Terraform Initialization ⚙️\`${{ steps.init.outcome }}\`
+            #### Terraform Validation 🤖\`${{ steps.validate.outcome }}\`
+            #### Terraform Plan 📖\`${{ steps.plan.outcome }}\`
 
-          *Pushed by: @${{ github.actor }}, Action: \`${{ github.event_name }}\`*`;
+            <details><summary>Show Plan</summary>
 
-          github.rest.issues.createComment({
-            issue_number: context.issue.number,
-            owner: context.repo.owner,
-            repo: context.repo.repo,
-            body: output
-          })
+            \`\`\`terraform\n
+            ${process.env.PLAN}
+            \`\`\`
 
-    - name: Terraform Apply
-      if: github.ref == 'refs/heads/main' && github.event_name == 'push'
-      env: 
-        TF_VAR_accountId: ${{ secrets.AWS_ACCOUNT_ID }}
-      run: terraform apply -auto-approve -input=false
+            </details>
 
-    - name: Connect to AWS EKS Cluster
-      if: github.ref == 'refs/heads/main' && github.event_name == 'push'
-      run: aws eks update-kubeconfig --name ${{ env.CLUSTER_NAME }} --region ${{ env.AWS_REGION_DEFAULT }}
+            *Pushed by: @${{ github.actor }}, Action: \`${{ github.event_name }}\`*`;
 
-    - name: Deploy k8s Resources to AWS EKS
-      if: github.ref == 'refs/heads/main' && github.event_name == 'push'
-      run: kubectl apply -f k8s/ -R
+            github.rest.issues.createComment({
+              issue_number: context.issue.number,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              body: output
+            })
+
+      - name: Terraform Apply
+        if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+        env:
+          TF_VAR_accountId: ${{ secrets.AWS_ACCOUNT_ID }}
+        run: terraform apply -auto-approve -input=false
+
+      - name: Connect to AWS EKS Cluster
+        if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+        run: aws eks update-kubeconfig --name ${{ env.CLUSTER_NAME }} --region ${{ env.AWS_REGION_DEFAULT }}
+
+      - name: Deploy k8s Resources to AWS EKS
+        if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+        run: kubectl apply -f k8s/ -R
