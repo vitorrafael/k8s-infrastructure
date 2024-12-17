@@ -1,3 +1,7 @@
+provider "kubernetes" {
+  config_path = "~/.kube/config"
+}
+
 resource "kubernetes_secret" "db_credentials" {
   metadata {
     name = "db-credentials"

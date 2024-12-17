@@ -162,4 +162,7 @@ jobs:
 
       - name: Deploy k8s Resources to AWS EKS
         if: github.ref == 'refs/heads/main' && github.event_name == 'push'
-        run: kubectl apply -f k8s/ -R
+        run: |
+          terraform -chdir=k8s init
+          terraform -chdir=k8s apply -auto-approve
+          kubectl apply -f k8s/ -R
