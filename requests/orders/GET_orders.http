@@ -1,0 +1,41 @@
+### Get all orders
+GET http://localhost:8080/orders/all
+
+
+### Creat order without customer
+
+POST http://localhost:8080/orders HTTP/1.1
+Content-Type: application/json
+
+{
+    "customerId": null
+}
+
+### Insert product into order
+POST http://localhost:8080/orders/1/items HTTP/1.1
+Content-Type: application/json
+
+{
+    "productId": 1,
+    "quantity": 1
+}
+
+###
+
+POST http://localhost:8081/products HTTP/1.1
+Content-Type: application/json
+
+{
+  "name": "Hamburguer do Tuya",
+  "category": "Lanche",
+  "price": 30.99,
+  "description": "Hamburguer do Tuya - Classico de SL",
+  "images": [
+    {
+      "url": "https://upload.wikimedia.org/wikipedia/commons/6/6a/JavaScript-logo.png"
+    }
+  ]
+}
+
+###
+GET http://localhost:8081/products

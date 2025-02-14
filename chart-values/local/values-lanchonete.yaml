@@ -1,0 +1,38 @@
+# Helm Values Specific to Orders Microservice
+configMapData:
+  API_PORT: "31200"
+  POSTGRES_HOST: "lanchonete-db"
+  POSTGRES_PORT: "5432" 
+  POSTGRES_DB: "lanchonete-database"
+  POSTGRES_USER: "postgres"
+  DATABASE_HOST: lanchonete-db
+  DATABASE_PORT: "5432"
+
+secret:
+  enabled: true
+  data:
+    POSTGRES_PASSWORD: "MTIzNDU2"
+
+image:
+  repository: "vitorrafael/lanchonete-api"
+  tag: "latest"
+
+service:
+  type: ClusterIP
+  port: 8081
+  targetPort: 8080
+
+database:
+  port: 5432
+  exposedPort: 5432
+  useStatefulSet: true
+  image:
+    repository: postgres
+    tag: latest
+  configMapData:
+    POSTGRES_DB: "lanchonete-database"
+    POSTGRES_USER: "postgres"
+    POSTGRES_PORT: "5432"
+    VOLUME_DB_DATA: "/var/lib/postgresql/data"
+  secretData:
+    POSTGRES_PASSWORD: "MTIzNDU2"
