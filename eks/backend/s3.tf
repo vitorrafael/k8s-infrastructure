@@ -44,7 +44,7 @@ resource "aws_s3_bucket_policy" "backend" {
         Action = "s3:*"
         Resource = [
           aws_s3_bucket.backend.id,
-          "${aws_s3_bucket.mycompliantbucket.arn}/*",
+          "${aws_s3_bucket.backend.arn}/*",
         ]
         Condition = {
           Bool = {
