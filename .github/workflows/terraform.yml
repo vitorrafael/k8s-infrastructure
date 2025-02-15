@@ -16,7 +16,7 @@ permissions:
 env:
   AWS_REGION_DEFAULT: us-east-1
   CLUSTER_NAME: tech-challenge-lanchonete
-  S3_BACKEND_BUCKET_NAME: tcl-terraform-bucket-apresentacao
+  S3_BACKEND_BUCKET_NAME: tcl-terraform-bucket-vitorrafael
 
 jobs:
   sonarqube:
