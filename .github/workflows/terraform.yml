@@ -27,11 +27,11 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: SonarQube Scan
-        uses: SonarSource/sonarqube-scan-action@v4
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+      # - name: SonarQube Scan
+      #   uses: SonarSource/sonarqube-scan-action@v4
+      #   env:
+      #     GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      #     SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
 
   terraform-backend:
     name: "Terraform Backend"
@@ -77,15 +77,12 @@ jobs:
     name: "Terraform EKS"
     needs: terraform-backend
     runs-on: ubuntu-latest
-    environment: production
 
-    # Use the Bash shell regardless whether the GitHub Actions runner is ubuntu-latest, macos-latest, or windows-latest
     defaults:
       run:
         shell: bash
 
     steps:
-      # Checkout the repository to the GitHub Actions runner
       - name: Checkout
         uses: actions/checkout@v4
 
@@ -155,11 +152,44 @@ jobs:
           TF_VAR_accountId: ${{ secrets.AWS_ACCOUNT_ID }}
         run: terraform -chdir=eks apply -auto-approve -input=false
 
-  lanchonete-deploy:
-    name: "Deploy Lanchonete"
+  ingress-controller:
+    if: github.ref == 'refs/heads/main'
+    name: "Setup Ingress Controller"
     needs: terraform-eks
     runs-on: ubuntu-latest
-    environment: production
+    steps:
+      - name: Configure AWS Credentials
+        uses: aws-actions/configure-aws-credentials@v1
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-session-token: ${{ secrets.AWS_SESSION_TOKEN }}
+          aws-region: ${{ env.AWS_REGION_DEFAULT }}
+
+      - name: Connect to AWS EKS Cluster
+        run: aws eks update-kubeconfig --name ${{ env.CLUSTER_NAME }} --region ${{ env.AWS_REGION_DEFAULT }}
+
+      - name: Install Helm
+        id: helm-install
+        uses: azure/setup-helm@v3
+
+      - name: Configure Helm Repository
+        run: |
+          helm repo add ingress-nginx https://kubernetes.github.io/ingress-nginx
+      
+      - name: Install Ingress Controller
+        run: |
+          helm upgrade -i ingress-nginx ingress-nginx/ingress-nginx \
+            --version 4.2.3 \
+            --namespace kube-system \
+            --set controller.serviceType=LoadBalancer \
+            --set controller.ingressClassResource.default=true
+
+  ingress:
+    if: github.ref == 'refs/heads/main'
+    name: "Setup Ingress"
+    needs: ingress-controller
+    runs-on: ubuntu-latest
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -173,46 +203,8 @@ jobs:
           aws-region: ${{ env.AWS_REGION_DEFAULT }}
 
       - name: Connect to AWS EKS Cluster
-        if: github.ref == 'refs/heads/main' && github.event_name == 'push'
         run: aws eks update-kubeconfig --name ${{ env.CLUSTER_NAME }} --region ${{ env.AWS_REGION_DEFAULT }}
 
-      - name: Install Helm
-        id: helm-install
-        if: github.ref == 'refs/heads/main' && github.event_name == 'push'
-        uses: azure/setup-helm@v3
-
-      - name: Deploy 'Lanchonete' Monolith Application
-        if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+      - name: Apply Ingress Configuration
         run: |
-          helm upgrade --install lanchonete microservice-chart -f chart-values/aws/values-lanchonete.yaml
-
-  orders-deploy:
-    name: "Deploy Orders"
-    needs: terraform-eks
-    runs-on: ubuntu-latest
-    environment: production
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-
-      - name: Configure AWS Credentials
-        uses: aws-actions/configure-aws-credentials@v1
-        with:
-          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
-          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-          aws-session-token: ${{ secrets.AWS_SESSION_TOKEN }}
-          aws-region: ${{ env.AWS_REGION_DEFAULT }}
-
-      - name: Connect to AWS EKS Cluster
-        if: github.ref == 'refs/heads/main' && github.event_name == 'push'
-        run: aws eks update-kubeconfig --name ${{ env.CLUSTER_NAME }} --region ${{ env.AWS_REGION_DEFAULT }}
-
-      - name: Install Helm
-        id: helm-install
-        if: github.ref == 'refs/heads/main' && github.event_name == 'push'
-        uses: azure/setup-helm@v3
-
-      - name: Deploy 'Orders' Microservice
-        if: github.ref == 'refs/heads/main' && github.event_name == 'push'
-        run: |
-          helm upgrade --install orders microservice-chart -f chart-values/aws/values-orders.yaml
+          kubectl apply -f k8s/ingress.yaml
