@@ -28,11 +28,11 @@ resource "aws_security_group" "sg" {
   }
 }
 
-resource "aws_security_group_rule" "eks_to_rds" {
-  type                     = "ingress"
-  from_port                = data.terraform_remote_state.rds.outputs.rds_port
-  to_port                  = data.terraform_remote_state.rds.outputs.rds_port
-  protocol                 = "tcp"
-  security_group_id        = data.terraform_remote_state.rds.outputs.rds_security_group_id
-  source_security_group_id = aws_security_group.sg.id
-}
+# resource "aws_security_group_rule" "eks_to_rds" {
+#   type                     = "ingress"
+#   from_port                = data.terraform_remote_state.rds.outputs.rds_port
+#   to_port                  = data.terraform_remote_state.rds.outputs.rds_port
+#   protocol                 = "tcp"
+#   security_group_id        = data.terraform_remote_state.rds.outputs.rds_security_group_id
+#   source_security_group_id = aws_security_group.sg.id
+# }
