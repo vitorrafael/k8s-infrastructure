@@ -1,0 +1,15 @@
+apiVersion: v1
+entries:
+  tech-challenge-lanchonete-microservice-chart:
+  - apiVersion: v2
+    appVersion: 1.16.0
+    created: "2025-02-15T17:13:28.407410993Z"
+    description: A chart for microservices of Tech Challenge Lanchonete, allowing
+      the creation of an application tied with a database
+    digest: 7c98dfc57a692af046865947673d6e68ac3ab87a05318c83f8a93bf65d66e40b
+    name: tech-challenge-lanchonete-microservice-chart
+    type: application
+    urls:
+    - https://github.com/vitorrafael/k8s-infrastructure/releases/download/tech-challenge-lanchonete-microservice-chart-0.1.0/tech-challenge-lanchonete-microservice-chart-0.1.0.tgz
+    version: 0.1.0
+generated: "2025-02-15T17:13:28.407415772Z"
