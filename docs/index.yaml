@@ -10,6 +10,6 @@ entries:
     name: tech-challenge-lanchonete-microservice-chart
     type: application
     urls:
-    - fiap-8soat-g6.github.io/k8s-infrastructure/docs/tech-challenge-lanchonete-microservice-chart-0.1.0.tgz
+    - vitorrafael.github.io/k8s-infrastructure/docs/tech-challenge-lanchonete-microservice-chart-0.1.0.tgz
     version: 0.1.0
 generated: "2025-02-15T13:17:58.114029-03:00"
