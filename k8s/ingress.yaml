@@ -7,41 +7,40 @@ metadata:
 spec:
   ingressClassName: "nginx"
   rules:
-  - host: tech-challenge-lanchonete.com
-    http:
-      paths:
-        - path: /orders
-          pathType: Prefix
-          backend:
-            service:
-              name: orders-service
-              port:
-                number: 8080
-        - path: /webhooks
-          pathType: Prefix
-          backend:
-            service:
-              name: orders-service
-              port:
-                number: 8080
-        - path: /customers
-          pathType: Prefix
-          backend:
-            service:
-              name: lanchonete-service
-              port:
-                number: 8080
-        - path: /products
-          pathType: Prefix
-          backend:
-            service:
-              name: lanchonete-service
-              port:
-                number: 8080
-        - path: /category
-          pathType: Prefix
-          backend:
-            service:
-              name: lanchonete-service
-              port:
-                number: 8080
+    - http:
+        paths:
+          - path: /orders
+            pathType: Prefix
+            backend:
+              service:
+                name: orders-service
+                port:
+                  number: 8080
+          - path: /webhooks
+            pathType: Prefix
+            backend:
+              service:
+                name: orders-service
+                port:
+                  number: 8080
+          - path: /customers
+            pathType: Prefix
+            backend:
+              service:
+                name: customers-service
+                port:
+                  number: 8080
+          - path: /products
+            pathType: Prefix
+            backend:
+              service:
+                name: products-service
+                port:
+                  number: 8080
+          - path: /category
+            pathType: Prefix
+            backend:
+              service:
+                name: products-service
+                port:
+                  number: 8080
