@@ -27,7 +27,7 @@ spec:
             pathType: Prefix
             backend:
               service:
-                name: customers-service
+                name: customer-service
                 port:
                   number: 8080
           - path: /products
